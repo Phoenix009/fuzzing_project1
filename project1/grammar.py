@@ -21,112 +21,214 @@ def get_random_string():
 class Store:
     def __init__(self):
         self.store = {}
+        self.query_processor = None
 
     def get_table_names(self):
         return set(self.store.keys())
 
-    def add_table(self, table_name):
-        self.store[table_name] = {}
+    def set_table(self, table_name, table_info):
+        self.store[table_name] = table_info
+
+    def remove_table(self, table_name):
+        assert table_name in self.store
+        self.store.pop(table_name)
+
+    def get_table(self, table_name):
+        return self.store[table_name]
+
+    def set_query_processor(self, query_processor):
+        self.query_processor = query_processor
+
+    def get_query_processor(self):
+        return self.query_processor
 
 
-class CreateTableProcessor:
+class QueryProcessor:
     def __init__(self, store: Store) -> None:
         self.store = store
+        self.table_name = None
 
     def get_new_table_name(self):
         table_names = self.store.get_table_names()
         new_name = get_random_string()
         while new_name in table_names:
-            new_name = self.get_random_string()
+            new_name = get_random_string()
 
-        self.store.add_table(new_name)
+        self.store.set_table(new_name, {})
+        self.table_name = new_name
 
         return new_name
 
     def get_new_column_name(self):
-        new_name = self.get_random_string()
-        # print(f"current_table_name: {self.current_table_name}")
-        current_table = self.table_store[self.current_table_name]
+        assert self.table_name is not None
+        current_table = self.store.get_table(self.table_name)
 
-        while new_name in current_table:
-            new_name = self.get_random_string()
+        new_name = get_random_string()
+
+        while new_name in current_table.keys():
+            new_name = get_random_string()
 
         current_table[new_name] = ""
-        self.table_store[self.current_table_name] = current_table
+        self.store.set_table(self.table_name, current_table)
 
         return new_name
 
+    def get_table_name(self):
+        result = random.choice(list(self.store.get_table_names()))
+        self.table_name = result
+        return self.table_name
 
-def get_table_name(self):
-    result = random.choice(list(self.table_store.keys()))
-    self.current_table_name = result
-    # print(f"current_table_name: {self.current_table_name}, result: {result}")
-    return self.current_table_name
+    def get_column_name(self):
+        assert self.table_name is not None
+        current_table = self.store.get_table(self.table_name)
+        return random.choice(list(current_table.keys()))
+
+    def update_table_name(self, new_table_name):
+        assert self.table_name is not None
+        table_info = self.store.get_table(self.table_name)
+        self.store.set_table(new_table_name, table_info)
+        self.store.remove_table(self.table_name)
+        self.table_name = new_table_name
+
+    def update_column_name(self, column_name, new_column_name):
+        assert self.table_name is not None
+        current_table = self.store.get_table(self.table_name)
+        current_table[new_column_name] = current_table[column_name]
+        current_table.pop(column_name)
+        self.store.set_table(self.table_name, current_table)
+
+    def delete_column_name(self, column_name):
+        assert self.table_name is not None
+        current_table = self.store.get_table(self.table_name)
+        current_table.pop(column_name)
+        self.store.set_table(self.table_name, current_table)
 
 
-def update_table_name(self, new_table_name):
-    self.table_store[new_table_name] = self.table_store[self.current_table_name]
-    self.table_store.pop(self.current_table_name)
-    self.current_table_name = new_table_name
+class CreateTableProcessor:
+    def __init__(self, store: Store) -> None:
+        print("setting create table query processor...")
+        self.qp = QueryProcessor(store)
+
+    def get_new_table_name(self):
+        return self.qp.get_new_table_name()
+
+    def get_new_column_name(self):
+        return self.qp.get_new_column_name()
+
+    def get_table_name(self):
+        return self.qp.get_table_name()
+
+    def get_column_name(self):
+        return self.qp.get_column_name()
 
 
-def get_column_name(self):
-    # print(f"current_table_name: {self.current_table_name}")
-    return random.choice(list(self.table_store[self.current_table_name].keys()))
+class AlterTableProcessor:
+    def __init__(self, store: Store) -> None:
+        print("setting alter table query processor...")
+        self.qp = QueryProcessor(store)
 
+    def get_table_name(self):
+        return self.qp.get_table_name()
 
-def update_column_name(self, column_name, new_column_name):
-    self.table_store[self.current_table_name][new_column_name] = self.table_store[
-        self.current_table_name
-    ][column_name]
-    self.table_store[self.current_table_name].pop(column_name)
+    def update_table_name(self, new_table_name):
+        self.qp.update_table_name(new_table_name)
 
+    def get_new_column_name(self):
+        return self.get_new_column_name()
 
-def delete_column_name(self, column_name):
-    self.table_store[self.current_table_name].pop(column_name)
+    def get_column_name(self):
+        return self.qp.get_column_name()
+
+    def update_column_name(self, column_name, new_column_name):
+        self.qp.update_column_name(column_name, new_column_name)
+
+    def delete_column_name(self, column_name):
+        self.qp.delete_column_name(column_name)
 
 
 store = Store()
 
 create_table_stmt = {
     "<create-table-stmt>": [
-        ("CREATE TABLE <new-table-name> <view-or-table>", opts(order=[1, 2])),
-        ("CREATE TEMP TABLE <new-table-name> <view-or-table>", opts(order=[1, 2])),
-        ("CREATE TEMPORARY TABLE <new-table-name> <view-or-table>", opts(order=[1, 2])),
-        ("CREATE TABLE main.<table-name> <view-or-table>", opts(order=[1, 2])),
-        ("CREATE TEMP TABLE temp.<table-name> <view-or-table>", opts(order=[1, 2])),
         (
-            "CREATE TEMPORARY TABLE temp.<table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            "CREATE TABLE <new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
+        ),
+        (
+            "CREATE TEMP TABLE <new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
+        ),
+        (
+            "CREATE TEMPORARY TABLE <new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
+        ),
+        (
+            "CREATE TABLE main.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
+        ),
+        (
+            "CREATE TEMP TABLE temp.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
+        ),
+        (
+            "CREATE TEMPORARY TABLE temp.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
             "CREATE TABLE IF NOT EXISTS <new-table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
             "CREATE TEMP TABLE IF NOT EXISTS <new-table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
             "CREATE TEMPORARY TABLE IF NOT EXISTS <new-table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
-            "CREATE TABLE IF NOT EXISTS main.<table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            "CREATE TABLE IF NOT EXISTS main.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
-            "CREATE TEMP TABLE IF NOT EXISTS temp.<table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            "CREATE TEMP TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
         ),
         (
-            "CREATE TEMPORARY TABLE IF NOT EXISTS temp.<table-name> <view-or-table>",
-            opts(order=[1, 2]),
+            "CREATE TEMPORARY TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
+            opts(
+                order=[1, 2],
+            ),
         ),
     ],
     "<view-or-table>": [
-        "AS <select-stmt>",
-        "( <column-defs> <table-constraints-0> ) <table-options-0>",
+        # "AS <select-stmt>",
+        (
+            "( <column-defs> <table-constraints-0> ) <table-options-0>",
+            opts(order=[1, 2, 3]),
+        ),
     ],
     "<column-defs>": ["<column-def>, <column-defs>", "<column-def>"],
     "<table-constraints-0>": [", <table-constraint> <table-constraints-0>", ""],
@@ -181,7 +283,7 @@ column_constraint = {
         "DEFAULT <literal-value>",
         "DEFAULT <signed-number>",
         "COLLATE <collation-name>",
-        "<foreign-key-clause>",
+        # "<foreign-key-clause>",
         "GENERATED ALWAYS AS ( <expr> )",
         "GENERATED ALWAYS AS ( <expr> ) STORED",
         "GENERATED ALWAYS AS ( <expr> ) VIRTUAL",
@@ -265,7 +367,7 @@ table_constraint = {
         "PRIMARY KEY ( <indexed-columns> ) <conflict-clause>",
         "UNIQUE ( <indexed-columns> ) <conflict-clause>",
         "CHECK ( <expr> )",
-        "FOREIGN KEY ( <column-names> ) <foreign-key-clause>",
+        # "FOREIGN KEY ( <column-names> ) <foreign-key-clause>",
     ],
     "<indexed-columns>": ["<indexed-column>, <indexed-columns>", "<indexed-column>"],
     "<column-names>": ["<column-name>, <column-names>", "<column-name>"],
@@ -639,7 +741,7 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> COLUMN <column-name> TO <new-column-name>",
             opts(
                 order=[1, 2, 3],
-                post=lambda _, column_name, new_column_name: name_store.update_column_name(
+                post=lambda _, column_name, new_column_name: store.get_query_processor().update_column_name(
                     column_name, new_column_name
                 ),
             ),
@@ -648,7 +750,7 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> RENAME TO <new-table-name>",
             opts(
                 order=[1, 2],
-                post=lambda new_table_name: name_store.update_table_name(
+                post=lambda new_table_name: store.get_query_processor().update_table_name(
                     new_table_name
                 ),
             ),
@@ -657,7 +759,7 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> <column-name> TO <new-column-name>",
             opts(
                 order=[1, 2, 3],
-                post=lambda _, column_name, new_column_name: name_store.update_column_name(
+                post=lambda _, column_name, new_column_name: store.get_query_processor().update_column_name(
                     column_name, new_column_name
                 ),
             ),
@@ -668,14 +770,18 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> DROP COLUMN <column-name>",
             opts(
                 order=[1, 2],
-                post=lambda _, column_name: name_store.delete_column_name(column_name),
+                post=lambda _, column_name: store.get_query_processor().delete_column_name(
+                    column_name
+                ),
             ),
         ),
         (
             "ALTER TABLE <table-name> DROP <column-name>",
             opts(
                 order=[1, 2],
-                post=lambda _, column_name: name_store.delete_column_name(column_name),
+                post=lambda _, column_name: store.get_query_processor().delete_column_name(
+                    column_name
+                ),
             ),
         ),
         # "ALTER TABLE <schema-name>.<table-name> RENAME TO <new-table-name>",
@@ -758,10 +864,24 @@ digit = {"<digit>": list("0123456789")}
 hexdigit = {"<hexdigit>": list("01234567890ABCDEF")}
 
 misc = {
-    "<table-name>": [("<characters>", opts(pre=name_store.get_table_name))],
-    "<column-name>": [("<characters>", opts(pre=name_store.get_column_name))],
+    "<table-name>": [
+        ("<characters>", opts(pre=lambda: store.get_query_processor().get_table_name()))
+    ],
+    "<column-name>": [
+        (
+            "<characters>",
+            opts(
+                pre=lambda: store.get_query_processor().get_column_name(),
+            ),
+        )
+    ],
     "<base-window-name>": ["<characters>"],
-    "<new-table-name>": [("<characters>", opts(pre=name_store.get_new_table_name))],
+    "<new-table-name>": [
+        (
+            "<characters>",
+            opts(pre=lambda: store.get_query_processor().get_new_table_name()),
+        )
+    ],
     # "<schema-name>": ["<characters>"],
     "<column-alias>": ["<characters>"],
     "<table-function-name>": ["<characters>"],
@@ -769,8 +889,13 @@ misc = {
     "<function-name>": ["<characters>"],
     "<index-name>": ["<characters>"],
     "<table-alias>": ["<characters>"],
-    "<new-column-name>": [("<characters>", opts(pre=name_store.get_new_column_name))],
-    # "<name>": ["<characters>"],
+    "<new-column-name>": [
+        (
+            "<characters>",
+            opts(pre=lambda: store.get_query_processor().get_new_column_name()),
+        )
+    ],
+    "<name>": ["<characters>"],
     "<error-message>": ["<characters>"],
     "<bind-parameter>": ["<characters>"],
     "<collation-name>": ["<characters>"],
@@ -784,9 +909,18 @@ grammar = {
         # "<sql-stmt> ; <sql-stmt-list>",
     ],
     "<sql-stmt>": [
-        "<create-table-stmt>",
-        "<select-stmt>",
-        "<alter-table-stmt>",
+        (
+            "<create-table-stmt>",
+            opts(
+                pre=lambda: store.set_query_processor(CreateTableProcessor(store)),
+                prob=1.0,
+            ),
+        ),
+        # "<select-stmt>",
+        (
+            "<alter-table-stmt>",
+            opts(pre=lambda: store.set_query_processor(AlterTableProcessor(store))),
+        ),
     ],
     **create_table_stmt,
     **column_def,
@@ -795,7 +929,7 @@ grammar = {
     **conflict_clause,
     **literal_value,
     **signed_number,
-    # **foreign_key_clause,
+    **foreign_key_clause,
     **table_constraint,
     **table_options,
     **indexed_column,
@@ -830,19 +964,16 @@ grammar = {
 if __name__ == "__main__":
     from fuzzingbook.GeneratorGrammarFuzzer import ProbabilisticGeneratorGrammarFuzzer
     from pprint import pprint
+    from fuzzingbook.Grammars import trim_grammar
 
-    fuzzer = ProbabilisticGeneratorGrammarFuzzer(grammar)
-
-    grammar["<sql-stmt>"].append(("<create-table-stmt>", opts(prob=1.0)))
+    fuzzer = ProbabilisticGeneratorGrammarFuzzer(trim_grammar(grammar))
 
     for i in range(3):
         print(fuzzer.fuzz())
         print()
 
-    grammar["<sql-stmt>"].pop()
-
     for i in range(5):
         print(fuzzer.fuzz())
         print()
 
-    pprint(name_store.table_store)
+    print(store.store)
