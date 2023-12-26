@@ -21,7 +21,7 @@ def get_random_string():
 class Store:
     def __init__(self):
         self.store = {}
-        self.query_processor = None
+        self.query_processors = []
 
     def get_table_names(self):
         return set(self.store.keys())
@@ -36,11 +36,19 @@ class Store:
     def get_table(self, table_name):
         return self.store[table_name]
 
-    def set_query_processor(self, query_processor):
-        self.query_processor = query_processor
+    def append_query_processor(self, query_processor):
+        # print(f"append_query_processor: {query_processor}"
+        self.query_processors.append(query_processor(self))
+        return True
+
+    def pop_query_processor(self):
+        # print(f"pop_query_processor: {self.query_processors}")
+        self.query_processors.pop()
+        return True
 
     def get_query_processor(self):
-        return self.query_processor
+        assert len(self.query_processors) > 0
+        return self.query_processors[-1]
 
 
 class QueryProcessor:
@@ -89,6 +97,7 @@ class QueryProcessor:
         self.store.set_table(new_table_name, table_info)
         self.store.remove_table(self.table_name)
         self.table_name = new_table_name
+        return True
 
     def update_column_name(self, column_name, new_column_name):
         assert self.table_name is not None
@@ -96,17 +105,18 @@ class QueryProcessor:
         current_table[new_column_name] = current_table[column_name]
         current_table.pop(column_name)
         self.store.set_table(self.table_name, current_table)
+        return True
 
-    def delete_column_name(self, column_name):
+    def delete_column_name(self, table_name, column_name):
         assert self.table_name is not None
         current_table = self.store.get_table(self.table_name)
         current_table.pop(column_name)
         self.store.set_table(self.table_name, current_table)
+        return True
 
 
 class CreateTableProcessor:
     def __init__(self, store: Store) -> None:
-        print("setting create table query processor...")
         self.qp = QueryProcessor(store)
 
     def get_new_table_name(self):
@@ -122,28 +132,42 @@ class CreateTableProcessor:
         return self.qp.get_column_name()
 
 
+class SelectProcessor:
+    def __init__(self, store: Store) -> None:
+        self.qp = QueryProcessor(store)
+
+    def get_table_name(self):
+        # print(f"select_processor get_table_name...")
+        return self.qp.get_table_name()
+
+    def get_column_name(self):
+        return self.qp.get_column_name()
+
+
 class AlterTableProcessor:
     def __init__(self, store: Store) -> None:
-        print("setting alter table query processor...")
         self.qp = QueryProcessor(store)
 
     def get_table_name(self):
         return self.qp.get_table_name()
 
-    def update_table_name(self, new_table_name):
-        self.qp.update_table_name(new_table_name)
+    def get_new_table_name(self):
+        return self.qp.get_new_table_name()
 
     def get_new_column_name(self):
-        return self.get_new_column_name()
+        return self.qp.get_new_column_name()
 
     def get_column_name(self):
         return self.qp.get_column_name()
 
-    def update_column_name(self, column_name, new_column_name):
-        self.qp.update_column_name(column_name, new_column_name)
+    def update_table_name(self, new_table_name):
+        return self.qp.update_table_name(new_table_name)
 
-    def delete_column_name(self, column_name):
-        self.qp.delete_column_name(column_name)
+    def update_column_name(self, column_name, new_column_name):
+        return self.qp.update_column_name(column_name, new_column_name)
+
+    def delete_column_name(self, table_name, column_name):
+        return self.qp.delete_column_name(table_name, column_name)
 
 
 store = Store()
@@ -168,24 +192,24 @@ create_table_stmt = {
                 order=[1, 2],
             ),
         ),
-        (
-            "CREATE TABLE main.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
-        (
-            "CREATE TEMP TABLE temp.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
-        (
-            "CREATE TEMPORARY TABLE temp.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
+        # (
+        #     "CREATE TABLE main.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
+        # (
+        #     "CREATE TEMP TABLE temp.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
+        # (
+        #     "CREATE TEMPORARY TABLE temp.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
         (
             "CREATE TABLE IF NOT EXISTS <new-table-name> <view-or-table>",
             opts(
@@ -204,24 +228,24 @@ create_table_stmt = {
                 order=[1, 2],
             ),
         ),
-        (
-            "CREATE TABLE IF NOT EXISTS main.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
-        (
-            "CREATE TEMP TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
-        (
-            "CREATE TEMPORARY TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
-            opts(
-                order=[1, 2],
-            ),
-        ),
+        # (
+        #     "CREATE TABLE IF NOT EXISTS main.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
+        # (
+        #     "CREATE TEMP TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
+        # (
+        #     "CREATE TEMPORARY TABLE IF NOT EXISTS temp.<new-table-name> <view-or-table>",
+        #     opts(
+        #         order=[1, 2],
+        #     ),
+        # ),
     ],
     "<view-or-table>": [
         # "AS <select-stmt>",
@@ -436,7 +460,7 @@ expr = {
         "<expr> NOT BETWEEN <expr> and <expr>",
         "<expr> IN ()",
         "<expr> NOT IN ()",
-        "<expr> IN ( <select-stmt >)",
+        "<expr> IN ( <select-stmt>)",
         "<expr> NOT IN ( <select-stmt> )",
         "<expr> IN ( <exprs> )",
         "<expr> NOT IN ( <exprs> )",
@@ -569,44 +593,62 @@ raise_function = {
 }
 
 select_stmt = {
-    "<select-stmt>": ["<select-0> <select-cores> <select-1>"],
+    "<select-stmt>": [("<select-0> <select-cores> <select-1>", opts(order=[1, 2, 3]))],
     "<select-0>": [
-        "",
-        "WITH",
-        "WITH RECURSIVE",
-        "WITH <common-table-expressions>",
-        "WITH RECURSIVE <common-table-expressions>",
+        ("", opts(prob=1.0)),
+        # "WITH",
+        # "WITH RECURSIVE",
+        # "WITH <common-table-expressions>",
+        # "WITH RECURSIVE <common-table-expressions>",
     ],
     "<common-table-expressions>": [
         "<common-table-expression>, <common-table-expressions>",
         "<common-table-expression>",
     ],
     "<select-cores>": [
-        "<select-core>",
+        ("<select-core>", opts(prob=1.0)),
         "<select-core> <compound-operator> <select-cores>",
     ],
     "<select-core>": [
-        "VALUES <values>",
-        "SELECT <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
-        "SELECT DISTINCT <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
-        "SELECT ALL <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
+        # "VALUES <values>",
+        (
+            "SELECT <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
+            opts(order=[5, 1, 2, 3, 4, 6]),
+        ),
+        (
+            "SELECT DISTINCT <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
+            opts(order=[5, 1, 2, 3, 4, 6]),
+        ),
+        (
+            "SELECT ALL <result-columns> <from-0> <where-0> <groupby-0> <having-0> <window-0>",
+            opts(order=[5, 1, 2, 3, 4, 6]),
+        ),
     ],
     "<from-0>": [
-        "",
-        "FROM <join-clause>",
+        # "",
+        # "FROM <join-clause>",
         "FROM <table-or-subquerys>",
     ],
     "<where-0>": ["", "WHERE <expr>"],
-    "<groupby-0>": ["", "GROUP BY <exprs>"],
-    "<having-0>": ["", "HAVING <expr>"],
-    "<window-0>": ["", "WINDOW <window-defs>"],
+    "<groupby-0>": [
+        "",
+        # "GROUP BY <exprs>"
+    ],
+    "<having-0>": [
+        "",
+        # "HAVING <expr>"
+    ],
+    "<window-0>": [
+        "",
+        # "WINDOW <window-defs>"
+    ],
     "<window-defs>": [
         "<window-name> AS <window-defn>",
         "<window-name> AS <window-defn>, <window-defs>",
     ],
     "<table-or-subquerys>": [
         "<table-or-subquery>",
-        "<table-or-subquery>, <table-or-subquerys>",
+        # "<table-or-subquery>, <table-or-subquerys>",
     ],
     "<result-columns>": ["<result-column>, <result-columns>", "<result-column>"],
     "<values>": ["VALUES ( <exprs> ), <values>", "VALUES ( <exprs> )"],
@@ -644,7 +686,10 @@ join_clause = {
     ],
     "<join-clause-0>": [
         "",
-        "<join-operator> <table-or-subquery> <join-constraint> <join-clause-0>",
+        (
+            "<join-operator> <table-or-subquery> <join-constraint> <join-clause-0>",
+            opts(order=[1, 2, 3, 4]),
+        ),
     ],
 }
 
@@ -653,17 +698,20 @@ join_constraint = {"<join-constraint>": ["", "ON <expr>", "USING ( <column-names
 join_operator = {
     "<join-operator>": [
         " , ",
-        "CROSS JOIN" "JOIN",
+        "CROSS JOIN",
+        "JOIN",
         "NATURAL JOIN",
         "LEFT JOIN",
         "NATURAL LEFT JOIN",
         "RIGHT JOIN",
-        "NATURAL RIGHT JOIN" "FULL JOIN",
+        "NATURAL RIGHT JOIN",
+        "FULL JOIN",
         "NATURAL FULL JOIN",
         "LEFT OUTER JOIN",
         "NATURAL LEFT OUTER JOIN",
         "RIGHT OUTER JOIN",
-        "NATURAL RIGHT OUTER JOIN" "FULL OUTER JOIN",
+        "NATURAL RIGHT OUTER JOIN",
+        "FULL OUTER JOIN",
         "NATURAL FULL OUTER JOIN",
         "INNER JOIN",
         "NATURAL INNER JOIN",
@@ -690,17 +738,17 @@ table_or_subquery = {
         # "<schema-name>.<table-name> NOT INDEXED",
         # "<schema-name>.<table-name> <table-alias> NOT INDEXED",
         # "<schema-name>.<table-name> AS <table-alias> NOT INDEXED",
-        "<table-function-name> ( <exprs> )",
-        "<table-function-name> ( <exprs> ) <table-alias>",
-        "<table-function-name> ( <exprs> ) AS <table-alias>",
+        # "<table-function-name> ( <exprs> )",
+        # "<table-function-name> ( <exprs> ) <table-alias>",
+        # "<table-function-name> ( <exprs> ) AS <table-alias>",
         # "<schema-name>.<table-function-name> ( <exprs> )",
         # "<schema-name>.<table-function-name> ( <exprs> ) <table-alias>",
         # "<schema-name>.<table-function-name> ( <exprs> ) AS <table-alias>",
-        "( <select-stmt> )",
-        "( <select-stmt> ) <table-alias>",
-        "( <select-stmt> ) AS <table-alias>",
-        "( <table-or-subquerys> )",
-        "( <join-clause> )",
+        # "( <select-stmt> )",
+        # "( <select-stmt> ) <table-alias>",
+        # "( <select-stmt> ) AS <table-alias>",
+        # "( <table-or-subquerys> )",
+        # ("( <join-clause> )", opts(prob=0.0)),
     ]
 }
 
@@ -741,7 +789,7 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> COLUMN <column-name> TO <new-column-name>",
             opts(
                 order=[1, 2, 3],
-                post=lambda _, column_name, new_column_name: store.get_query_processor().update_column_name(
+                post=lambda table_name, column_name, new_column_name: store.get_query_processor().update_column_name(
                     column_name, new_column_name
                 ),
             ),
@@ -750,7 +798,7 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> RENAME TO <new-table-name>",
             opts(
                 order=[1, 2],
-                post=lambda new_table_name: store.get_query_processor().update_table_name(
+                post=lambda table_name, new_table_name: store.get_query_processor().update_table_name(
                     new_table_name
                 ),
             ),
@@ -770,8 +818,9 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> DROP COLUMN <column-name>",
             opts(
                 order=[1, 2],
-                post=lambda _, column_name: store.get_query_processor().delete_column_name(
-                    column_name
+                prob=0.05,
+                post=lambda table_name, column_name: store.get_query_processor().delete_column_name(
+                    table_name, column_name
                 ),
             ),
         ),
@@ -779,8 +828,9 @@ alter_table_stmt = {
             "ALTER TABLE <table-name> DROP <column-name>",
             opts(
                 order=[1, 2],
-                post=lambda _, column_name: store.get_query_processor().delete_column_name(
-                    column_name
+                prob=0.05,
+                post=lambda table_name, column_name: store.get_query_processor().delete_column_name(
+                    table_name, column_name
                 ),
             ),
         ),
@@ -899,81 +949,150 @@ misc = {
     "<error-message>": ["<characters>"],
     "<bind-parameter>": ["<characters>"],
     "<collation-name>": ["<characters>"],
+    "<view-name>": ["<characters>"],
+    "<index-name>": ["<characters>"],
 }
 
+create_view_stmt = {
+    "<create-view-stmt>": [
+        "CREATE VIEW <view-name> AS <select-stmt>",
+        "CREATE VIEW IF NOT EXISTS <view-name> AS <select-stmt>",
+        # "CREATE VIEW <view-name> ( <column-names> ) AS <select-stmt>",
+        # "CREATE VIEW IF NOT EXISTS <view-name> ( <column-names> ) AS <select-stmt>",
+    ]
+}
+
+create_index_stmt = {
+    "<create-index-stmt>": [
+        "CREATE INDEX <index-name> ON <table-name> ( <indexed-column> )",
+        "CREATE UNIQUE INDEX <index-name> ON <table-name> ( <indexed-column> )",
+        "CREATE INDEX IF NOT EXISTS <index-name> ON <table-name> ( <indexed-column> )",
+        "CREATE UNIQUE INDEX IF NOT EXISTS <index-name> ON <table-name> ( <indexed-column> )",
+        # "CREATE INDEX <index-name> ON <table-name> ( <indexed-column> ) WHERE <expr>",
+        # "CREATE UNIQUE INDEX <index-name> ON <table-name> ( <indexed-column> ) WHERE <expr>",
+        # "CREATE INDEX IF NOT EXISTS <index-name> ON <table-name> ( <indexed-column> ) WHERE <expr>",
+        # "CREATE UNIQUE INDEX IF NOT EXISTS <index-name> ON <table-name> ( <indexed-column> ) WHERE <expr>",
+    ]
+}
+
+begin_stmt = {
+    "<begin-stmt>": [
+        "BEGIN",
+        "BEGIN DEFERRED",
+        "BEGIN IMMEDIATE",
+        "BEGIN EXCLUSIVE",
+        "BEGIN TRANSACTION",
+        "BEGIN DEFERRED TRANSACTION",
+        "BEGIN IMMEDIATE TRANSACTION",
+        "BEGIN EXCLUSIVE TRANSACTION",
+    ]
+}
+
+commit_stmt = {
+    "<commit-stmt>": [
+        "COMMIT",
+        "END",
+        "COMMIT TRANSACTION",
+        "END TRANSACTION",
+    ]
+}
+
+rollback_stmt = {
+    "<rollback-stmt>": [
+        "ROLLBACK",
+        "ROLLBACK TRANSACTION",
+        "ROLLBACK TO <savepoint-name>",
+        "ROLLBACK TRANSACTION TO <savepoint-name>",
+        "ROLLBACK TO SAVEPOINT <savepoint-name>",
+        "ROLLBACK TRANSACTION TO SAVEPOINT <savepoint-name>",
+    ]
+}
+
+
 grammar = {
-    "<start>": ["<sql-stmt-list>"],
-    "<sql-stmt-list>": [
-        # "",
-        "<sql-stmt>",
-        # "<sql-stmt> ; <sql-stmt-list>",
-    ],
-    "<sql-stmt>": [
+    "<start>": [("<phase-1>", opts(prob=1.0)), "<phase-2>"],
+    "<phase-1>": [
         (
             "<create-table-stmt>",
             opts(
-                pre=lambda: store.set_query_processor(CreateTableProcessor(store)),
+                pre=lambda: store.append_query_processor(CreateTableProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+            "<create-view-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(
+                    CreateTableProcessor
+                ),  # TODO: CreateViewProcessor
+                post=lambda _: store.pop_query_processor(),
+            ),
+            "<create-index-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(
+                    CreateTableProcessor
+                ),  # TODO: CreateIndexProcessor
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+    ],
+    "<phase-2>": [
+        (
+            "<select-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(SelectProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+        (
+            "<alter-table-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(AlterTableProcessor),
+                post=lambda _: store.pop_query_processor(),
                 prob=1.0,
             ),
         ),
-        # "<select-stmt>",
-        (
-            "<alter-table-stmt>",
-            opts(pre=lambda: store.set_query_processor(AlterTableProcessor(store))),
-        ),
+        "<begin-stmt>",
+        "<commit-stmt>",
+        "<rollback-stmt>",
     ],
-    **create_table_stmt,
-    **column_def,
-    **type_name,
-    **column_constraint,
-    **conflict_clause,
-    **literal_value,
-    **signed_number,
-    **foreign_key_clause,
-    **table_constraint,
-    **table_options,
-    **indexed_column,
-    **filter_clause,
-    **function_arguments,
-    **expr,
-    **over_clause,
-    **frame_spec,
-    **ordering_term,
-    **raise_function,
-    **numeric_literal,
-    **string_literal,
+    **alter_table_stmt,
+    **begin_stmt,
+    **binary_operator,
     **blob_literal,
-    **select_stmt,
+    **column_constraint,
+    **column_def,
+    **commit_stmt,
     **common_table_expression,
     **compound_operator,
+    **conflict_clause,
+    **create_index_stmt,
+    **create_table_stmt,
+    **create_view_stmt,
+    **digit,
+    **expr,
+    **filter_clause,
+    **foreign_key_clause,
+    **frame_spec,
+    **function_arguments,
+    **hexdigit,
+    **indexed_column,
     **join_clause,
     **join_constraint,
     **join_operator,
-    **table_or_subquery,
-    **result_column,
-    **window_defn,
-    **alter_table_stmt,
-    **digit,
-    **hexdigit,
-    **unary_operator,
-    **binary_operator,
+    **literal_value,
     **misc,
+    **numeric_literal,
+    **ordering_term,
+    **over_clause,
+    **raise_function,
+    **result_column,
+    **rollback_stmt,
+    **select_stmt,
+    **signed_number,
+    **string_literal,
+    **table_constraint,
+    **table_options,
+    **table_or_subquery,
+    **type_name,
+    **unary_operator,
+    **window_defn,
 }
-
-
-if __name__ == "__main__":
-    from fuzzingbook.GeneratorGrammarFuzzer import ProbabilisticGeneratorGrammarFuzzer
-    from pprint import pprint
-    from fuzzingbook.Grammars import trim_grammar
-
-    fuzzer = ProbabilisticGeneratorGrammarFuzzer(trim_grammar(grammar))
-
-    for i in range(3):
-        print(fuzzer.fuzz())
-        print()
-
-    for i in range(5):
-        print(fuzzer.fuzz())
-        print()
-
-    print(store.store)
