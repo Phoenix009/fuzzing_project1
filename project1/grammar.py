@@ -357,6 +357,15 @@ class CreateTableProcessor:
         return self.qp.mark_table_temporary(table_name)
 
 
+class AnalyzeProcessor:
+    def __init__(self, store: Store) -> None:
+        self.qp = QueryProcessor(store)
+
+    def get_table_name(self):
+        # print(f"select_processor get_table_name...")
+        return self.qp.get_table_name()
+
+
 class SelectProcessor:
     def __init__(self, store: Store) -> None:
         self.qp = QueryProcessor(store)
@@ -1224,7 +1233,20 @@ pragma_stmt = {
     "<pragma-name>": ["<characters>"],
 }
 
-attach_stmt = {"<attach-stmt>": ["`"]}
+analyze_stmt = {
+    "<analyze-stmt>": [
+        "ANALYZE main",
+        # "ANALYZE <index-name>",
+        "ANALYZE <table-name>",
+    ]
+}
+
+vacuum_stmt = {
+    "<vacuum-stmt>": [
+        "VACUUM main",
+    ]
+}
+
 
 grammar = {
     "<start>": [("<phase-1>", opts(prob=1.0)), "<phase-2>"],
@@ -1268,12 +1290,21 @@ grammar = {
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
+        (
+            "<analyze-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(AnalyzeProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+        "<vacuum-stmt>",
         # "<begin-stmt>",
         # "<commit-stmt>",
         # "<rollback-stmt>",
         "<pragma-stmt>",
     ],
     **alter_table_stmt,
+    **analyze_stmt,
     **begin_stmt,
     **binary_operator,
     **blob_literal,
@@ -1314,5 +1345,6 @@ grammar = {
     **table_or_subquery,
     **type_name,
     **unary_operator,
+    **vacuum_stmt,
     **window_defn,
 }
