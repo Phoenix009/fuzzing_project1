@@ -44,7 +44,13 @@ class Experiment:
             command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         )
         output, error = process.communicate()
-        print(f"output: {output}")
+
+        # print(f"sqlcmd: {sqlcmd}")  # remove
+        # print(f"output: {output}")  # remove
+        # print()  # remove
+
+        # if len(output):
+        #     exit()
 
     def get_coverage(self):
         coverage_report_file = "coverage_report.csv"

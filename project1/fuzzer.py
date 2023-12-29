@@ -13,28 +13,28 @@ from grammar import store
 
 
 class MyFuzzer(ProbabilisticGeneratorGrammarFuzzer):
-    # def expand_tree_once(self, tree: DerivationTree) -> DerivationTree:
-    #     # Apply inherited method.  This also calls `expand_tree_once()` on all
-    #     # subtrees.
-    #     symbol, children = tree
-    #     print(f"expanding symbol: {symbol}...")
-    #     new_tree: DerivationTree = GrammarFuzzer.expand_tree_once(self, tree)
+    def expand_tree_once(self, tree: DerivationTree) -> DerivationTree:
+        # Apply inherited method.  This also calls `expand_tree_once()` on all
+        # subtrees.
+        symbol, children = tree
+        # print(f"expanding symbol: {symbol}...")
+        new_tree: DerivationTree = GrammarFuzzer.expand_tree_once(self, tree)
 
-    #     (symbol, children) = new_tree
-    #     if all(
-    #         [
-    #             exp_post_expansion_function(expansion) is None
-    #             for expansion in self.grammar[symbol]
-    #         ]
-    #     ):
-    #         # No constraints for this symbol
-    #         return new_tree
+        (symbol, children) = new_tree
+        if all(
+            [
+                exp_post_expansion_function(expansion) is None
+                for expansion in self.grammar[symbol]
+            ]
+        ):
+            # No constraints for this symbol
+            return new_tree
 
-    #     if self.any_possible_expansions(tree):
-    #         # Still expanding
-    #         return new_tree
+        if self.any_possible_expansions(tree):
+            # Still expanding
+            return new_tree
 
-    #     return self.run_post_functions_locally(new_tree)
+        return self.run_post_functions_locally(new_tree)
 
     def choose_tree_expansion(
         self, tree: DerivationTree, expandable_children: List[DerivationTree]
@@ -103,13 +103,28 @@ class Fuzzer:
 
     def setup_fuzzer(self):
         # This function may be changed.
-        self.grammar["<start>"] = [("<phase-1>", opts(prob=1.0)), "<phase-2>"]
+        self.grammar["<start>"] = [
+            ("<phase-1>", opts(prob=1.0)),
+            "<phase-2>",
+            "<phase-3>",
+        ]
         self.fuzzer = MyFuzzer(trim_grammar(self.grammar))
 
     def fuzz_one_input(self) -> str:
         # This function should be implemented, but the signature may not change.
-        if self.fuzz_count > 20:
-            self.grammar["<start>"] = ["<phase-1>", "<phase-2>"]
+        if self.fuzz_count == 50:
+            self.grammar["<start>"] = [
+                ("<phase-1>", opts(prob=0.0)),
+                ("<phase-2>", opts(prob=1.0)),
+                ("<phase-3>", opts(prob=0.0)),
+            ]
+            self.fuzzer = MyFuzzer(trim_grammar(self.grammar))
+        if self.fuzz_count == 100:
+            self.grammar["<start>"] = [
+                "<phase-1>",
+                "<phase-2>",
+                "<phase-3>",
+            ]
             self.fuzzer = MyFuzzer(trim_grammar(self.grammar))
 
         self.fuzz_count += 1
