@@ -112,14 +112,14 @@ class Fuzzer:
 
     def fuzz_one_input(self) -> str:
         # This function should be implemented, but the signature may not change.
-        if self.fuzz_count == 50:
+        if self.fuzz_count == 25:
             self.grammar["<start>"] = [
                 ("<phase-1>", opts(prob=0.0)),
                 ("<phase-2>", opts(prob=1.0)),
                 ("<phase-3>", opts(prob=0.0)),
             ]
             self.fuzzer = MyFuzzer(trim_grammar(self.grammar))
-        if self.fuzz_count == 100:
+        if self.fuzz_count == 50:
             self.grammar["<start>"] = [
                 "<phase-1>",
                 "<phase-2>",

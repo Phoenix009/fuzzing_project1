@@ -179,7 +179,22 @@ def get_random_name():
 class Store:
     def __init__(self):
         self.store = {}
+        self.schema = set()
         self.query_processors = []
+
+    def add_schema(self, schema_name):
+        print(f"adding schema {schema_name}...")
+        self.schema.add(schema_name)
+
+    def remove_schema(self, schema_name):
+        print(f"removing schema {schema_name}...")
+        self.schema.remove(schema_name)
+
+    def get_schema_name(self):
+        res = random.choice(list(self.schema))
+        print(f"random schema {res}...")
+        return res
+        # return random.choice(list(self.schema))
 
     def get_table_names(self):
         return set(self.store.keys())
@@ -222,8 +237,8 @@ class QueryProcessor:
 
     def get_new_table_name(self):
         init_empty_table = lambda: {
-            "has_primary_key": False,
-            "columns": set(),
+            "has_primary_key": True,
+            "columns": set(["id"]),
             "indices": set(),
         }
 
@@ -259,7 +274,7 @@ class QueryProcessor:
     def get_column_name(self):
         assert self.table_name is not None
         current_table = self.store.get_table(self.table_name)
-        return random.choice(list(current_table["columns"]))
+        return random.choice(list(current_table["columns"] - {"id"}))
 
     def update_table_name(self, table_name, new_table_name):
         # print(f"query_processor: update_table_name to {new_table_name}")
@@ -318,6 +333,39 @@ class QueryProcessor:
         self.table_name = table_name
         index_name = random.choice(list(table_with_indices[table_name]["indices"]))
         return f"{table_name} INDEXED BY {index_name}"
+
+    def add_schema(self, schema_name):
+        self.store.add_schema(schema_name)
+        return True
+
+    def remove_schema(self, schema_name):
+        self.store.remove_schema(schema_name)
+        return True
+
+    def get_schema_name(self):
+        return self.store.get_schema_name()
+
+
+class InsertProcessor:
+    def __init__(self, store: Store) -> None:
+        self.qp = QueryProcessor(store)
+
+    def get_table_name(self):
+        return self.qp.get_table_name()
+
+
+class AttachProcessor:
+    def __init__(self, store: Store) -> None:
+        self.qp = QueryProcessor(store)
+
+    def add_schema(self, schema_name):
+        return self.qp.add_schema(schema_name)
+
+    def remove_schema(self, schema_name):
+        return self.qp.remove_schema(schema_name)
+
+    def get_schema_name(self):
+        return self.qp.get_schema_name()
 
 
 class CreateIndexProcessor:
@@ -442,11 +490,11 @@ create_table_stmt = {
     ],
     "<view-or-table>": [
         (
-            "( <column-defs>, <table-constraint> ) <table-options>",
+            "(id INTEGER PRIMARY KEY AUTOINCREMENT, <column-defs>, <table-constraint> ) <table-options>",
             opts(order=[1, 2, 3]),
         ),
     ],
-    "<column-defs>": ["<column-def>, <column-defs>", "<column-def>"],
+    "<column-defs>": ["<column-def>, <column-def>, <column-defs>", "<column-def>"],
 }
 
 column_def = {
@@ -458,17 +506,17 @@ column_def = {
 
 type_name = {
     "<type-name>": [
-        "TEXT",
+        # "TEXT",
         "INTEGER",
-        "REAL",
+        # "REAL",
     ],
 }
 
 column_constraint = {
     "<column-constraint>": [
         "<column-constraint-base> DEFAULT ( <constant-expr> )",
-        "<column-constraint-base> DEFAULT <literal-value>",
-        "<column-constraint-base> DEFAULT <signed-number>",
+        # "<column-constraint-base> DEFAULT <literal-value>",
+        # "<column-constraint-base> DEFAULT <signed-number>",
     ],
     "<column-constraint-base>": [
         "NOT NULL",
@@ -484,12 +532,12 @@ column_constraint = {
     ],
     "<dummy>": [""],
     "<constant-expr>": [
-        "<numeric-literal>",
-        "<string-literal>",
-        "CURRENT_TIME",
-        "CURRENT_DATE",
-        "CURRENT_TIMESTAMP",
-        "<signed-number>",
+        "<integer>",
+        # "<string-literal>",
+        # "CURRENT_TIME",
+        # "CURRENT_DATE",
+        # "CURRENT_TIMESTAMP",
+        # "<signed-number>",
         "<unary-operator> <constant-expr>",
         "<constant-expr> <binary-operator> <constant-expr>",  # TODO: Can be problematic `string + number`
     ],
@@ -583,7 +631,6 @@ table_constraint = {
 table_options = {
     "<table-options>": [
         "STRICT",
-        "STRICT, <table-options>",
     ]
 }
 
@@ -815,19 +862,14 @@ select_stmt = {
     "<select-1>": [
         # "",
         "ORDER BY <ordering-term>",
-        "LIMIT <limit-number>",
-        "ORDER BY <ordering-term> LIMIT <limit-number>",
-        "LIMIT <limit-number> OFFSET <limit-number>",
-        "LIMIT <limit-number> , <limit-number>",
-        "ORDER BY <ordering-term> LIMIT <limit-number> OFFSET <limit-number>",
-        "ORDER BY <ordering-term> LIMIT <limit-number> , <limit-number>",
+        "LIMIT <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer>",
+        "LIMIT <integer> OFFSET <integer>",
+        "LIMIT <integer> , <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer> OFFSET <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer> , <integer>",
     ],
     "<ordering-terms>": ["<ordering-term>", "<ordering-term>, <ordering-terms>"],
-    "<limit-number>": [
-        "0x<hexdigits>",
-        "0X<hexdigits>",
-        "<digits>",
-    ],
 }
 
 common_table_expression = {
@@ -1032,7 +1074,7 @@ alter_table_stmt = {
 
 string_literal = {
     "<string-literal>": ["'<characters>'"],
-    "<characters>": ["<character><characters>", "<character><character><character>"],
+    "<characters>": ["<character>" * 4 + "<characters>", "<character>" * 4],
     "<character>": list(string.ascii_letters),
 }
 
@@ -1046,16 +1088,17 @@ blob_literal = {
 
 numeric_literal = {
     "<numeric-literal>": [
-        "0x<hexdigits>",
-        "0X<hexdigits>",
-        ".<digits><exponent-0>",
-        "<digits><exponent-0>",
-        "<digits>.<digits><exponent-0>",
+        "<integer>",
+        "<real>",
+    ],
+    "<integer>": ["<digits>"],
+    "<real>": [
+        ".<digits><exponent>",
+        "<digits><exponent>",
+        "<digits>.<digits><exponent>",
     ],
     "<digits>": ["<digit><digits>", "<digit>"],
-    "<hexdigits>": ["<hexdigit><hexdigits>", "<hexdigit>"],
-    "<exponent-0>": [
-        "",
+    "<exponent>": [
         "E<digits>",
         "E+<digits>",
         "E-<digits>",
@@ -1094,7 +1137,6 @@ unary_operator = {
 
 digit = {"<digit>": list("0123456789")}
 
-hexdigit = {"<hexdigit>": list("01234567890ABCDEF")}
 
 misc = {
     "<table-name>": [
@@ -1247,14 +1289,90 @@ vacuum_stmt = {
     ]
 }
 
+drop_index_stmt = {
+    "<drop-index-stmt>": [
+        "DROP INDEX IF EXISTS <name>",
+    ]
+}
+
+drop_table_stmt = {
+    "<drop-table-stmt>": [
+        "DROP TABLE IF EXISTS <name>",
+    ]
+}
+
+drop_view_stmt = {
+    "<drop-view-stmt>": [
+        "DROP VIEW IF EXISTS <name>",
+    ]
+}
+
+attach_stmt = {
+    "<attach-stmt>": [
+        (
+            "ATTACH DATABASE <name> AS <name>",
+            opts(
+                post=lambda _, schema_name: store.get_query_processor().add_schema(
+                    schema_name
+                )
+            ),
+        ),
+        # (
+        #     "ATTACH <name> as <name>",
+        #     opts(
+        #         post=lambda _, schema_name: store.get_query_processor().add_schema(
+        #             schema_name
+        #         )
+        #     ),
+        # ),
+    ]
+}
+
+detach_stmt = {
+    "<detach-stmt>": [
+        # (
+        #     "DETACH <random-schema-name>",
+        #     opts(
+        #         post=lambda schema_name: store.get_query_processor().remove_schema(
+        #             schema_name
+        #         ),
+        #     ),
+        # ),
+        (
+            "DETACH DATABASE <random-schema-name>",
+            opts(
+                post=lambda schema_name: store.get_query_processor().remove_schema(
+                    schema_name
+                ),
+            ),
+        ),
+    ],
+    "<random-schema-name>": [
+        (
+            "<dummy>",
+            opts(
+                post=lambda _: store.get_query_processor().get_schema_name(),
+            ),
+        )
+    ],
+}
+
+insert_stmt = {"<insert-stmt>": ["INSERT INTO <table-name> DEFAULT VALUES"]}
 
 grammar = {
-    "<start>": [("<phase-1>", opts(prob=1.0)), "<phase-2>"],
+    "<start>": ["<phase-1>", "<phase-2>", "<phase-3>"],
     "<phase-1>": [
         (
             "<create-table-stmt>",
             opts(
                 pre=lambda: store.append_query_processor(CreateTableProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+        (
+            "<attach-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(AttachProcessor),
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
@@ -1272,6 +1390,21 @@ grammar = {
             opts(
                 pre=lambda: store.append_query_processor(SelectProcessor),
                 post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+        (
+            "<insert-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(InsertProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
+        (
+            "<detach-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(AttachProcessor),
+                post=lambda _: store.pop_query_processor(),
+                prob=0.01,
             ),
         ),
     ],
@@ -1302,9 +1435,13 @@ grammar = {
         # "<commit-stmt>",
         # "<rollback-stmt>",
         "<pragma-stmt>",
+        "<drop-table-stmt>",
+        "<drop-index-stmt>",
+        "<drop-view-stmt>",
     ],
     **alter_table_stmt,
     **analyze_stmt,
+    **attach_stmt,
     **begin_stmt,
     **binary_operator,
     **blob_literal,
@@ -1317,13 +1454,16 @@ grammar = {
     **create_index_stmt,
     **create_table_stmt,
     **create_view_stmt,
+    **detach_stmt,
     **digit,
+    **drop_index_stmt,
+    **drop_table_stmt,
+    **drop_view_stmt,
     **expr,
     **filter_clause,
     **foreign_key_clause,
     **frame_spec,
     **function_arguments,
-    **hexdigit,
     **indexed_column,
     **join_clause,
     **join_constraint,
@@ -1347,4 +1487,5 @@ grammar = {
     **unary_operator,
     **vacuum_stmt,
     **window_defn,
+    **insert_stmt,
 }

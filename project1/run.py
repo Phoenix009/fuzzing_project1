@@ -46,8 +46,8 @@ class Experiment:
         output, error = process.communicate()
 
         # print(f"sqlcmd: {sqlcmd}")  # remove
-        # print(f"output: {output}")  # remove
-        # print()  # remove
+        print(f"output: {output}")  # remove
+        print()  # remove
 
         # if len(output):
         #     exit()
