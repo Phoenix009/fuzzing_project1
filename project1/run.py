@@ -46,11 +46,13 @@ class Experiment:
         output, error = process.communicate()
 
         # print(f"sqlcmd: {sqlcmd}")  # remove
-        print(f"output: {output}")  # remove
-        print()  # remove
+        # print(f"output: {output}")  # remove
+        # print()  # remove
 
-        # if len(output):
-        #     exit()
+        if len(output) and "CREATE" in sqlcmd:
+            print(f"sqlcmd: {sqlcmd}")  # remove
+            print(f"output: {output}")  # remove
+            print("\a")
 
     def get_coverage(self):
         coverage_report_file = "coverage_report.csv"
@@ -93,18 +95,24 @@ class Experiment:
         self.run(self.fuzzer.fuzz_one_input())
 
     def generate_and_run_k_plot_coverage(self, k, plot_every_x):
+        from time import time
+
         self.clean()
 
         cov = []
         old_cov = 0
+        tic = time()
         for i in range(k):
-            print("Generate and run input ", i)
+            # print("Generate and run input ", i)
             self.generate_and_run()
             if plot_every_x != -1 and i % plot_every_x == 0:
                 old_cov = self.get_coverage()
             cov.append(old_cov)
 
         # Do one final coverage measurment (or the only one, if plot_every_x == -1).
+        toc = time()
+        print(f"time taken: {toc-tic} seconds")
+        print("\a")
         cov.append(self.get_coverage())
 
         plot(x=list(range(len(cov))), y=cov)

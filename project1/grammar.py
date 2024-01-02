@@ -6,7 +6,9 @@
 
 import string
 import random
+from typing import Any, Dict
 from fuzzingbook.Grammars import opts
+from pprint import pprint
 
 
 KEYWORDS = [
@@ -162,7 +164,7 @@ KEYWORDS = [
 
 def get_random_string():
     alpha = list(string.ascii_letters)
-    name_length = random.randint(5, 10)
+    name_length = random.randint(10, 15)
     result = "".join(
         [alpha[random.randint(0, len(alpha) - 1)] for _ in range(name_length)]
     )
@@ -183,42 +185,34 @@ class Store:
         self.query_processors = []
 
     def add_schema(self, schema_name):
-        print(f"adding schema {schema_name}...")
         self.schema.add(schema_name)
 
     def remove_schema(self, schema_name):
-        print(f"removing schema {schema_name}...")
         self.schema.remove(schema_name)
 
     def get_schema_name(self):
         res = random.choice(list(self.schema))
-        print(f"random schema {res}...")
         return res
-        # return random.choice(list(self.schema))
 
     def get_table_names(self):
         return set(self.store.keys())
 
     def set_table(self, table_name, table_info):
-        # print(f"setting table: {table_name}")
         self.store[table_name] = table_info
 
     def remove_table(self, table_name):
-        # print(f"removing table: {table_name}")
         assert table_name in self.store
         self.store.pop(table_name)
 
     def get_table(self, table_name):
-        # print(f"getting table_info for: {table_name}")
         return self.store[table_name]
 
     def append_query_processor(self, query_processor):
-        # print(f"append_query_processor: {query_processor}")
+        # print(f"appending_query_processor: {query_processor}")
         self.query_processors.append(query_processor(self))
         return True
 
     def pop_query_processor(self):
-        # print(f"pop_query_processor: {self.query_processors}")
         self.query_processors.pop()
         return True
 
@@ -293,10 +287,15 @@ class QueryProcessor:
         return True
 
     def delete_column_name(self, table_name, column_name):
+        # print(f"delete_column_name: {column_name}")
         assert self.table_name is not None
         current_table = self.store.get_table(self.table_name)
+        # print("before:")
+        # pprint(current_table)
         current_table["columns"].remove(column_name)
         self.store.set_table(self.table_name, current_table)
+        # print("after:")
+        # pprint(self.store.get_table(self.table_name))
         return True
 
     def set_primary_key(self, columns):
@@ -466,81 +465,66 @@ create_table_stmt = {
         (
             "CREATE TABLE <new-table-name> <view-or-table>",
             opts(
-                order=[1, 2],
+                order=(1, 2),
             ),
         ),
         (
             "CREATE TABLE main.<new-table-name> <view-or-table>",
             opts(
-                order=[1, 2],
+                order=(1, 2),
             ),
         ),
         (
             "CREATE TABLE IF NOT EXISTS <new-table-name> <view-or-table>",
             opts(
-                order=[1, 2],
+                order=(1, 2),
             ),
         ),
         (
             "CREATE TABLE IF NOT EXISTS main.<new-table-name> <view-or-table>",
             opts(
-                order=[1, 2],
+                order=(1, 2),
             ),
         ),
     ],
     "<view-or-table>": [
         (
             "(id INTEGER PRIMARY KEY AUTOINCREMENT, <column-defs>, <table-constraint> ) <table-options>",
-            opts(order=[1, 2, 3]),
+            opts(order=(1, 2, 3)),
         ),
     ],
-    "<column-defs>": ["<column-def>, <column-def>, <column-defs>", "<column-def>"],
+    "<column-defs>": [
+        "<column-def>, <column-defs>",
+        "<column-def>, <column-def>, <column-def>",
+    ],
 }
 
 column_def = {
     "<column-def>": [
-        ("<new-column-name> <type-name>", opts(order=[1, 2])),
-        ("<new-column-name> <type-name> <column-constraint>", opts(order=[1, 2, 3])),
+        (
+            "<new-column-name> TEXT <column-constraint-base> DEFAULT ( <string-expr> )",
+            opts(order=(1, 2, 3)),
+        ),
+        (
+            "<new-column-name> INTEGER <column-constraint-base> DEFAULT ( <integer-expr> )",
+            opts(order=(1, 2, 3)),
+        ),
+        (
+            "<new-column-name> REAL <column-constraint-base> DEFAULT ( <real-expr> )",
+            opts(order=(1, 2, 3)),
+        ),
     ],
 }
 
-type_name = {
-    "<type-name>": [
-        # "TEXT",
-        "INTEGER",
-        # "REAL",
-    ],
-}
 
 column_constraint = {
-    "<column-constraint>": [
-        "<column-constraint-base> DEFAULT ( <constant-expr> )",
-        # "<column-constraint-base> DEFAULT <literal-value>",
-        # "<column-constraint-base> DEFAULT <signed-number>",
-    ],
     "<column-constraint-base>": [
         "NOT NULL",
         "CHECK ( <expr> )",
         "COLLATE <collation-name>",
         # "<foreign-key-clause>",
-        # "GENERATED ALWAYS AS ( <expr> )",
-        # "GENERATED ALWAYS AS ( <expr> ) STORED",
-        # "GENERATED ALWAYS AS ( <expr> ) VIRTUAL",
-        # "AS ( <expr> )",
-        # "AS ( <expr> ) STORED",
-        # "AS ( <expr> ) VIRTUAL",
     ],
     "<dummy>": [""],
-    "<constant-expr>": [
-        "<integer>",
-        # "<string-literal>",
-        # "CURRENT_TIME",
-        # "CURRENT_DATE",
-        # "CURRENT_TIMESTAMP",
-        # "<signed-number>",
-        "<unary-operator> <constant-expr>",
-        "<constant-expr> <binary-operator> <constant-expr>",  # TODO: Can be problematic `string + number`
-    ],
 }
 
 conflict_clause = {
@@ -554,58 +538,38 @@ conflict_clause = {
     ],
 }
 
-literal_value = {
-    "<literal-value>": [
-        "NULL",
-        "TRUE",
-        "FALSE",
-        "<numeric-literal>",
-        "<string-literal>",
-        "CURRENT_TIME",
-        "CURRENT_DATE",
-        "CURRENT_TIMESTAMP",
-    ],
-}
 
-signed_number = {
-    "<signed-number>": [
-        "<numeric-literal>",
-        "+ <numeric-literal>",
-        "- <numeric-literal>",
-    ],
-}
-
-foreign_key_clause = {
-    "<foreign-key-clause>": [
-        "REFERENCES <table-name> ( <column-names> ) <foreign-key-clause-base>",
-        "REFERENCES <table-name> <foreign-key-clause-base>",
-        "REFERENCES <table-name>",
-    ],
-    "<column-names>": ["<column-name>, <column-names>", "<column-name>"],
-    "<foreign-key-clause-base>": [
-        "<on-or-matchs-0>",
-        "<on-or-matchs-0> DEFERABLE INITIALLY DEFERRED",
-        "<on-or-matchs-0> DEFERABLE INITIALLY IMMEDIATE",
-        "<on-or-matchs-0> DEFERABLE",
-        "<on-or-matchs-0> NOT DEFERABLE INITIALLY DEFERRED",
-        "<on-or-matchs-0> NOT DEFERABLE INITIALLY IMMEDIATE",
-        "<on-or-matchs-0> NOT DEFERABLE",
-    ],
-    "<on-or-matchs-0>": ["", "<on-or-match>", "<on-or-match> <on-or-matchs-0>"],
-    "<on-or-match>": [
-        "ON DELETE SET NULL",
-        "ON DELETE SET DEFAULT",
-        "ON DELETE CASCADE",
-        "ON DELETE RESTRICT",
-        "ON DELETE NO ACTION",
-        "ON UPDATE SET NULL",
-        "ON UPDATE SET DEFAULT",
-        "ON UPDATE CASCADE",
-        "ON UPDATE RESTRICT",
-        "ON UPDATE NO ACTION",
-        "MATCH <name>",  # TODO: What name?
-    ],
-}
+# foreign_key_clause = {
+#     "<foreign-key-clause>": [
+#         "REFERENCES <table-name> ( <column-names> ) <foreign-key-clause-base>",
+#         "REFERENCES <table-name> <foreign-key-clause-base>",
+#         "REFERENCES <table-name>",
+#     ],
+#     "<column-names>": ["<column-name>, <column-names>", "<column-name>"],
+#     "<foreign-key-clause-base>": [
+#         "<on-or-matchs-0>",
+#         "<on-or-matchs-0> DEFERABLE INITIALLY DEFERRED",
+#         "<on-or-matchs-0> DEFERABLE INITIALLY IMMEDIATE",
+#         "<on-or-matchs-0> DEFERABLE",
+#         "<on-or-matchs-0> NOT DEFERABLE INITIALLY DEFERRED",
+#         "<on-or-matchs-0> NOT DEFERABLE INITIALLY IMMEDIATE",
+#         "<on-or-matchs-0> NOT DEFERABLE",
+#     ],
+#     "<on-or-matchs-0>": ["", "<on-or-match>", "<on-or-match> <on-or-matchs-0>"],
+#     "<on-or-match>": [
+#         "ON DELETE SET NULL",
+#         "ON DELETE SET DEFAULT",
+#         "ON DELETE CASCADE",
+#         "ON DELETE RESTRICT",
+#         "ON DELETE NO ACTION",
+#         "ON UPDATE SET NULL",
+#         "ON UPDATE SET DEFAULT",
+#         "ON UPDATE CASCADE",
+#         "ON UPDATE RESTRICT",
+#         "ON UPDATE NO ACTION",
+#         "MATCH <name>",  # TODO: What name?
+#     ],
+# }
 
 table_constraint = {
     "<table-constraint>": [
@@ -624,7 +588,6 @@ table_constraint = {
         "CHECK ( <expr> )",
         # "FOREIGN KEY ( <column-names> ) <foreign-key-clause>",
     ],
-    "<indexed-columns>": ["<indexed-column>, <indexed-columns>", "<indexed-column>"],
     "<column-names>": ["<column-name>, <column-names>", "<column-name>"],
 }
 
@@ -646,110 +609,6 @@ indexed_column = {
 }
 
 
-expr = {
-    "<expr>": [
-        "<literal-value>",
-        # "<bind-parameter>",  # TODO: what bind-parameter
-        # "<schema-name>.<table-name>.<column-name>",
-        # "<table-name>.<column-name>",
-        "<unary-operator> <expr>",
-        # "<column-name>",
-        "<expr> <binary-operator> <expr>",
-        # "<function-name> ( <function-arguments> )"
-        # "<function-name> ( <function-arguments> ) <filter-clause>"
-        # "<function-name> ( <function-arguments> ) <over-clause>"
-        # "<function-name> ( <function-arguments> ) <filter-clause> <over-clause>"
-        # "( <exprs> )",
-        "CAST ( <expr> AS <type-name>)",
-        "<expr> COLLATE <collation-name>",
-        "<expr> LIKE <expr>",
-        "<expr> NOT LIKE <expr>",
-        # "<expr> LIKE <expr> ESCAPE <expr>",
-        # "<expr> NOT LIKE <expr> ESCAPE <expr>",
-        # "<expr> GLOB <expr>",
-        # "<expr> REGEXP <expr>",
-        "<expr> MATCH <expr>",
-        # "<expr> NOT GLOB <expr>",
-        # "<expr> NOT REGEXP <expr>",
-        "<expr> NOT MATCH <expr>",
-        "<expr> ISNULL",
-        "<expr> NOTNULL",
-        "<expr> NOT NULL",
-        "<expr> IS <expr>",
-        "<expr> IS NOT <expr>",
-        # "<expr> IS DISTINCT FROM <expr>",
-        # "<expr> IS NOT DISTINCT FROM <expr>",
-        "<expr> BETWEEN <expr> and <expr>",
-        "<expr> NOT BETWEEN <expr> and <expr>",
-        "<expr> IN ()",
-        "<expr> NOT IN ()",
-        # "<expr> IN ( <select-stmt>)",
-        # "<expr> NOT IN ( <select-stmt> )",
-        # "<expr> IN ( <exprs> )",
-        # "<expr> NOT IN ( <exprs> )",
-        # "<expr> IN <schema-name>.<table-name>",
-        # "<expr> NOT IN <schema-name>.<table-name>",
-        # "<expr> IN <table-name>",
-        # "<expr> NOT IN <table-name>",
-        # "<expr> IN <schema-name>.<table-function-name> ( <exprs> )",
-        # "<expr> NOT IN <schema-name>.<table-function-name> ( <exprs> )",
-        # "<expr> IN <table-function-name> ( <exprs> )",
-        # "<expr> NOT IN <table-function-name> ( <exprs> )",
-        # "( <select-stmt> )",
-        # "EXISTS ( <select-stmt> )",
-        # "NOT EXISTS ( <select-stmt> )",
-        "CASE <when-thens> END",
-        "CASE <expr> <when-thens> END",
-        "CASE <when-thens> ELSE <expr> END",
-        "CASE <expr> <when-thens> ELSE <expr> END",
-        # "<raise-function>",
-    ],
-    "<exprs>": ["<expr>, <exprs>", "<expr>"],
-    "<when-thens>": [
-        "WHEN <expr> THEN <expr>",
-        "WHEN <expr> THEN <expr> <when-thens>",
-    ],
-}
-
-filter_clause = {"<filter-clause>": ["FILTER ( WHERE <expr> )"]}
-
-function_arguments = {
-    "<function-arguments>": [
-        "",
-        "*",
-        "DISTINCT <exprs>",
-        "<exprs>",
-        "DISTINCT <exprs> ORDER BY <ordering-terms>",
-        "<exprs> ORDER BY <ordering-terms>",
-    ],
-    "<ordering-terms>": [
-        "<ordering-term>",
-        "<ordering-term>, <ordering-terms>",
-    ],
-}
-
-over_clause = {
-    "<over-clause>": [
-        "OVER <window-name>",
-        "OVER ( )",
-        "OVER ( <base-window-name> )",
-        "OVER ( PARTITION BY <exprs> )",
-        "OVER ( <base-window-name> PARTITION BY <exprs> )",
-        "OVER ( ORDER BY <ordering-terms> )",
-        "OVER ( <base-window-name> ORDER BY <ordering-terms> )",
-        "OVER ( PARTITION BY <exprs> ORDER BY <ordering-terms> )",
-        "OVER ( <base-window-name> PARTITION BY <exprs> ORDER BY <ordering-terms> )",
-        "OVER ( <frame-spec> )",
-        "OVER ( <base-window-name> <frame-spec> )",
-        "OVER ( PARTITION BY <exprs> <frame-spec> )",
-        "OVER ( <base-window-name> PARTITION BY <exprs> <frame-spec> )",
-        "OVER ( ORDER BY <ordering-terms> <frame-spec> )",
-        "OVER ( <base-window-name> ORDER BY <ordering-terms> <frame-spec> )",
-        "OVER ( PARTITION BY <exprs> ORDER BY <ordering-terms> <frame-spec> )",
-        "OVER ( <base-window-name> PARTITION BY <exprs> ORDER BY <ordering-terms> <frame-spec> )",
-    ]
-}
-
 frame_spec = {
     "<frame-spec>": [
         "<range-row-group> BETWEEN <frame-spec-1> AND <frame-spec-2> <excludes>",
@@ -759,14 +618,14 @@ frame_spec = {
     ],
     "<frame-spec-1>": [
         "UNBOUNDED PRECEDING",
-        "<expr> PRECEDING",
+        "<integer-expr> PRECEDING",
         "CURRENT ROW",
         "<expr> FOLLOWING",
     ],
     "<frame-spec-2>": [
-        "<expr> PRECEDING",
+        "<integer-expr> PRECEDING",
         "CURRENT ROW",
-        "<expr> FOLLOWING",
+        "<integer-expr> FOLLOWING",
         "UNBOUNDED FOLLOWING",
     ],
     "<range-row-group>": [
@@ -780,6 +639,59 @@ frame_spec = {
         "EXCLUDE CURRENT ROW",
         "EXCLUDE GROUP",
         "EXCLUDE TIES",
+    ],
+}
+
+
+select_stmt = {
+    "<select-stmt>": [("<select-core> <select-1>", opts(order=(1, 2)))],
+    # "<select-0>": [
+    #     "",
+    #     # "WITH",
+    #     # "WITH RECURSIVE",
+    #     # "WITH <common-table-expressions>",
+    #     # "WITH RECURSIVE <common-table-expressions>",
+    # ],
+    "<select-core>": [
+        "SELECT <core-functions>",
+        (
+            "SELECT <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
+            opts(order=(4, 1, 2, 3, 5)),
+        ),
+        (
+            "SELECT DISTINCT <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
+            opts(order=(4, 1, 2, 3, 5)),
+        ),
+        (
+            "SELECT ALL <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
+            opts(order=(4, 1, 2, 3, 5)),
+        ),
+    ],
+    "<from-0>": [
+        # "",
+        "FROM <join-clause>",
+        # "FROM <table-or-subquery>",
+    ],
+    "<where-0>": ["WHERE <expr>"],
+    "<groupby-0>": ["GROUP BY <expr>"],
+    # "<having-0>": [
+    #     "",
+    #     # "HAVING <expr>"
+    # ],
+    "<window-0>": [
+        # "",
+        "WINDOW <window-name> AS <window-defn>"
+    ],
+    "<result-columns>": ["<result-column>, <result-columns>", "<result-column>"],
+    "<select-1>": [
+        # "",
+        "ORDER BY <ordering-term>",
+        "LIMIT <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer>",
+        "LIMIT <integer> OFFSET <integer>",
+        "LIMIT <integer> , <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer> OFFSET <integer>",
+        "ORDER BY <ordering-term> LIMIT <integer> , <integer>",
     ],
 }
 
@@ -806,86 +718,6 @@ ordering_term = {
     ]
 }
 
-raise_function = {
-    "<raise-function>": [
-        "RAISE ( IGNORE )",
-        "RAISE ( ROLLBACK, <error-message> )",
-        "RAISE ( ABORT, <error-message> )",
-        "RAISE ( FAIL, <error-message> )",
-    ]
-}
-
-select_stmt = {
-    "<select-stmt>": [("<select-core> <select-1>", opts(order=[1, 2]))],
-    # "<select-0>": [
-    #     "",
-    #     # "WITH",
-    #     # "WITH RECURSIVE",
-    #     # "WITH <common-table-expressions>",
-    #     # "WITH RECURSIVE <common-table-expressions>",
-    # ],
-    "<common-table-expressions>": [
-        "<common-table-expression>, <common-table-expressions>",
-        "<common-table-expression>",
-    ],
-    "<select-core>": [
-        (
-            "SELECT <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
-            opts(order=[4, 1, 2, 3, 5]),
-        ),
-        (
-            "SELECT DISTINCT <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
-            opts(order=[4, 1, 2, 3, 5]),
-        ),
-        (
-            "SELECT ALL <result-columns> <from-0> <where-0> <groupby-0> <window-0>",
-            opts(order=[4, 1, 2, 3, 5]),
-        ),
-    ],
-    "<from-0>": [
-        # "",
-        "FROM <join-clause>",
-        "FROM <table-or-subquery>",
-    ],
-    "<where-0>": ["", "WHERE <expr>"],
-    "<groupby-0>": ["", "GROUP BY <exprs>"],
-    # "<having-0>": [
-    #     "",
-    #     # "HAVING <expr>"
-    # ],
-    "<window-0>": [
-        # "",
-        "WINDOW <window-name> AS <window-defn>"
-    ],
-    "<result-columns>": ["<result-column>, <result-columns>", "<result-column>"],
-    "<values>": ["VALUES ( <exprs> ), <values>", "VALUES ( <exprs> )"],
-    "<select-1>": [
-        # "",
-        "ORDER BY <ordering-term>",
-        "LIMIT <integer>",
-        "ORDER BY <ordering-term> LIMIT <integer>",
-        "LIMIT <integer> OFFSET <integer>",
-        "LIMIT <integer> , <integer>",
-        "ORDER BY <ordering-term> LIMIT <integer> OFFSET <integer>",
-        "ORDER BY <ordering-term> LIMIT <integer> , <integer>",
-    ],
-    "<ordering-terms>": ["<ordering-term>", "<ordering-term>, <ordering-terms>"],
-}
-
-common_table_expression = {
-    "<common-table-expression>": [
-        "<table-name> AS ( <select-stmt> )",
-        "<table-name> ( <column-names> ) AS ( <select-stmt> )",
-        "<table-name> AS MATERIALIZED ( <select-stmt> )",
-        "<table-name> ( <column-names> ) AS MATERIALIZED ( <select-stmt> )",
-        "<table-name> AS NOT MATERIALIZED ( <select-stmt> )",
-        "<table-name> ( <column-names> ) AS NOT MATERIALIZED ( <select-stmt> )",
-    ]
-}
-
-compound_operator = {
-    "<compound-operator>": ["UNION", "UNION ALL", "INTERSECT", "EXCEPT"]
-}
 
 join_clause = {
     "<join-clause>": [
@@ -895,7 +727,7 @@ join_clause = {
         "",
         (
             "<join-operator> <table-or-subquery> <join-constraint> <join-clause-0>",
-            opts(order=[1, 2, 3, 4]),
+            opts(order=(1, 2, 3, 4)),
         ),
     ],
 }
@@ -941,42 +773,9 @@ table_or_subquery = {
                 ),
             ),
         ),
-        # (
-        #     "<table-name> <table-alias> INDEXED BY <index-name>",
-        #     opts(
-        #         post=lambda table_name, *_: store.get_query_processor().get_index(
-        #             table_name
-        #         )
-        #     ),
-        # ),
-        # (
-        #     "<table-name> AS <table-alias> INDEXED BY <index-name>",
-        #     opts(
-        #         post=lambda table_name, *_: store.get_query_processor().get_index(
-        #             table_name
-        #         )
-        #     ),
-        # ),
-        # "<schema-name>.<table-name>",
-        # "<schema-name>.<table-name> <table-alias>",
-        # "<schema-name>.<table-name> AS <table-alias>",
-        # "<schema-name>.<table-name> INDEXED BY <index-name>",
-        # "<schema-name>.<table-name> <table-alias> INDEXED BY <index-name>",
-        # "<schema-name>.<table-name> AS <table-alias> INDEXED BY <index-name>",
-        # "<schema-name>.<table-name> NOT INDEXED",
-        # "<schema-name>.<table-name> <table-alias> NOT INDEXED",
-        # "<schema-name>.<table-name> AS <table-alias> NOT INDEXED",
-        # "<table-function-name> ( <exprs> )",
-        # "<table-function-name> ( <exprs> ) <table-alias>",
-        # "<table-function-name> ( <exprs> ) AS <table-alias>",
-        # "<schema-name>.<table-function-name> ( <exprs> )",
-        # "<schema-name>.<table-function-name> ( <exprs> ) <table-alias>",
-        # "<schema-name>.<table-function-name> ( <exprs> ) AS <table-alias>",
         "( <select-stmt> )",
         "( <select-stmt> ) <table-alias>",
         "( <select-stmt> ) AS <table-alias>",
-        # "( <table-or-subquerys> )",
-        # ("( <join-clause> )", opts(prob=0.0)),
     ]
 }
 
@@ -997,8 +796,8 @@ window_defn = {
         "( <base-window-name> PARTITION BY <expr>)",
         "( ORDER BY <ordering-term>)",
         "( <base-window-name> ORDER BY <ordering-term>)",
-        "( PARTITION BY <exprs> ORDER BY <ordering-term>)",
-        "( <base-window-name> PARTITION BY <exprs> ORDER BY <ordering-term>)",
+        "( PARTITION BY <expr> ORDER BY <ordering-term>)",
+        "( <base-window-name> PARTITION BY <expr> ORDER BY <ordering-term>)",
         "(<frame-spec>)",
         "( <base-window-name> <frame-spec>)",
         "( PARTITION BY <expr> <frame-spec>)",
@@ -1015,7 +814,7 @@ alter_table_stmt = {
         (
             "ALTER TABLE <table-name> RENAME COLUMN <column-name> TO <new-column-name>",
             opts(
-                order=[1, 2, 3],
+                order=(1, 2, 3),
                 post=lambda table_name, column_name, new_column_name: store.get_query_processor().update_column_name(
                     column_name, new_column_name
                 ),
@@ -1024,7 +823,7 @@ alter_table_stmt = {
         (
             "ALTER TABLE <table-name> RENAME TO <new-table-name>",
             opts(
-                order=[1, 2],
+                order=(1, 2),
                 post=lambda table_name, new_table_name: store.get_query_processor().update_table_name(
                     table_name, new_table_name
                 ),
@@ -1033,19 +832,17 @@ alter_table_stmt = {
         (
             "ALTER TABLE <table-name> RENAME <column-name> TO <new-column-name>",
             opts(
-                order=[1, 2, 3],
+                order=(1, 2, 3),
                 post=lambda _, column_name, new_column_name: store.get_query_processor().update_column_name(
                     column_name, new_column_name
                 ),
             ),
         ),
-        ("ALTER TABLE <table-name> ADD COLUMN <column-def>", opts(order=[1, 2])),
-        ("ALTER TABLE <table-name> ADD <column-def>", opts(order=[1, 2])),
         (
             "ALTER TABLE <table-name> DROP COLUMN <column-name>",
             opts(
-                order=[1, 2],
-                prob=0.01,
+                order=(1, 2),
+                prob=0.001,
                 post=lambda table_name, column_name: store.get_query_processor().delete_column_name(
                     table_name, column_name
                 ),
@@ -1054,88 +851,15 @@ alter_table_stmt = {
         (
             "ALTER TABLE <table-name> DROP <column-name>",
             opts(
-                order=[1, 2],
-                prob=0.01,
+                order=(1, 2),
+                prob=0.001,
                 post=lambda table_name, column_name: store.get_query_processor().delete_column_name(
                     table_name, column_name
                 ),
             ),
         ),
-        # "ALTER TABLE <schema-name>.<table-name> RENAME TO <new-table-name>",
-        # "ALTER TABLE <schema-name>.<table-name> COLUMN <column-name> TO <new-column-name>",
-        # "ALTER TABLE <schema-name>.<table-name> <column-name> TO <new-column-name>",
-        # "ALTER TABLE <schema-name>.<table-name> ADD COLUMN <column-def>",
-        # "ALTER TABLE <schema-name>.<table-name> ADD <column-def>",
-        # "ALTER TABLE <schema-name>.<table-name> DROP COLUMN <column-name>",
-        # "ALTER TABLE <schema-name>.<table-name> DROP <column-name>",
     ]
 }
-
-
-string_literal = {
-    "<string-literal>": ["'<characters>'"],
-    "<characters>": ["<character>" * 4 + "<characters>", "<character>" * 4],
-    "<character>": list(string.ascii_letters),
-}
-
-
-blob_literal = {
-    # # "<blob-literal>": [
-    #     "x'<hexdigits>'",
-    #     # "X'<hexdigits>'",
-    # ]
-}
-
-numeric_literal = {
-    "<numeric-literal>": [
-        "<integer>",
-        "<real>",
-    ],
-    "<integer>": ["<digits>"],
-    "<real>": [
-        ".<digits><exponent>",
-        "<digits><exponent>",
-        "<digits>.<digits><exponent>",
-    ],
-    "<digits>": ["<digit><digits>", "<digit>"],
-    "<exponent>": [
-        "E<digits>",
-        "E+<digits>",
-        "E-<digits>",
-        "e<digits>",
-        "e+<digits>",
-        "e-<digits>",
-    ],
-}
-
-
-binary_operator = {
-    "<binary-operator>": [
-        "||",
-        "*",
-        "/",
-        "%",
-        "+",
-        "-",
-        "&",
-        "|",
-        "<<",
-        ">>",
-        "<",
-        ">",
-        "<=",
-        ">=",
-        "=",
-        "==",
-        "!=",
-    ],
-}
-
-unary_operator = {
-    "<unary-operator>": ["~", "+", "-"],
-}
-
-digit = {"<digit>": list("0123456789")}
 
 
 misc = {
@@ -1157,11 +881,8 @@ misc = {
             opts(pre=lambda: store.get_query_processor().get_new_table_name()),
         )
     ],
-    # "<schema-name>": ["<characters>"],
     "<column-alias>": ["<characters>"],
-    "<table-function-name>": ["<characters>"],
     "<window-name>": ["<characters>"],
-    "<function-name>": ["<characters>"],
     "<index-name>": ["<characters>"],
     "<table-alias>": ["<characters>"],
     "<new-column-name>": [
@@ -1171,8 +892,6 @@ misc = {
         )
     ],
     "<name>": ["<characters>"],
-    "<error-message>": ["<characters>"],
-    "<bind-parameter>": ["<characters>"],
     "<collation-name>": ["RTRIM", "NOCASE", "BINARY"],
     "<view-name>": ["<characters>"],
     "<savepoint-name>": ["<characters>"],
@@ -1194,39 +913,39 @@ create_index_stmt = {
         (
             "CREATE INDEX <new-index-name> ON <table-name> ( <indexed-column> )",
             opts(
-                order=[1, 2, 3],
+                order=(1, 2, 3),
                 post=lambda index_name, table_name, _: store.get_query_processor().create_index(
                     table_name, index_name
                 ),
             ),
         ),
-        (
-            "CREATE UNIQUE INDEX <new-index-name> ON <table-name> ( <indexed-column> )",
-            opts(
-                order=[1, 2, 3],
-                post=lambda index_name, table_name, _: store.get_query_processor().create_index(
-                    table_name, index_name
-                ),
-            ),
-        ),
+        # (
+        #     "CREATE UNIQUE INDEX <new-index-name> ON <table-name> ( <indexed-column> )",
+        #     opts(
+        #         order=(1, 2, 3),
+        #         post=lambda index_name, table_name, _: store.get_query_processor().create_index(
+        #             table_name, index_name
+        #         ),
+        #     ),
+        # ),
         (
             "CREATE INDEX IF NOT EXISTS <new-index-name> ON <table-name> ( <indexed-column> )",
             opts(
-                order=[1, 2, 3],
+                order=(1, 2, 3),
                 post=lambda index_name, table_name, _: store.get_query_processor().create_index(
                     table_name, index_name
                 ),
             ),
         ),
-        (
-            "CREATE UNIQUE INDEX IF NOT EXISTS <new-index-name> ON <table-name> ( <indexed-column> )",
-            opts(
-                order=[1, 2, 3],
-                post=lambda index_name, table_name, _: store.get_query_processor().create_index(
-                    table_name, index_name
-                ),
-            ),
-        ),
+        # (
+        #     "CREATE UNIQUE INDEX IF NOT EXISTS <new-index-name> ON <table-name> ( <indexed-column> )",
+        #     opts(
+        #         order=(1, 2, 3),
+        #         post=lambda index_name, table_name, _: store.get_query_processor().create_index(
+        #             table_name, index_name
+        #         ),
+        #     ),
+        # ),
     ]
 }
 
@@ -1265,14 +984,70 @@ rollback_stmt = {
 
 pragma_stmt = {
     "<pragma-stmt>": [
-        "PRAGMA <pragma-name> = <pragma-value>",
-        "PRAGMA <pragma-name> ( <pragma-value> )",
+        "PRAGMA <pragma-name> = <integer>",
+        "PRAGMA <pragma-name>",
     ],
-    "<pragma-value>": [
-        "<signed-number>",
-        "<string-literal>",
+    "<pragma-name>": [
+        "analysis_limit",
+        "application_id",
+        "auto_vacuum",
+        "automatic_index",
+        "busy_timeout",
+        "cache_size",
+        "cache_spill",
+        "cell_size_check",
+        "checkpoint_fullfsync",
+        "collation_list",
+        "compile_options",
+        "data_version",
+        "database_list",
+        "defer_foreign_keys",
+        "encoding",
+        "foreign_key_check",
+        "foreign_key_list",
+        "foreign_keys",
+        "freelist_count",
+        "fullfsync",
+        "function_list",
+        "hard_heap_limit",
+        "ignore_check_constraints",
+        "incremental_vacuum",
+        "index_info",
+        "index_list",
+        "index_xinfo",
+        "integrity_check",
+        "journal_mode",
+        "journal_size_limit",
+        "legacy_alter_table",
+        "legacy_file_format",
+        "locking_mode",
+        "max_page_count",
+        "mmap_size",
+        "module_list",
+        "optimize",
+        "page_count",
+        "page_size",
+        "pragma_list",
+        "query_only",
+        "quick_check",
+        "read_uncommitted",
+        "recursive_triggers",
+        "reverse_unordered_selects",
+        "secure_delete",
+        "shrink_memory",
+        "soft_heap_limit",
+        "stats³",
+        "synchronous",
+        "table_info",
+        "table_list",
+        "table_xinfo",
+        "temp_store",
+        "threads",
+        "trusted_schema",
+        "user_version",
+        "wal_autocheckpoint",
+        "wal_checkpoint",
     ],
-    "<pragma-name>": ["<characters>"],
 }
 
 analyze_stmt = {
@@ -1309,55 +1084,249 @@ drop_view_stmt = {
 
 attach_stmt = {
     "<attach-stmt>": [
-        (
-            "ATTACH DATABASE <name> AS <name>",
-            opts(
-                post=lambda _, schema_name: store.get_query_processor().add_schema(
-                    schema_name
-                )
-            ),
-        ),
-        # (
-        #     "ATTACH <name> as <name>",
-        #     opts(
-        #         post=lambda _, schema_name: store.get_query_processor().add_schema(
-        #             schema_name
-        #         )
-        #     ),
-        # ),
+        "ATTACH DATABASE <name> AS <name>",
+        "ATTACH <name> as <name>",
     ]
 }
 
 detach_stmt = {
     "<detach-stmt>": [
-        # (
-        #     "DETACH <random-schema-name>",
-        #     opts(
-        #         post=lambda schema_name: store.get_query_processor().remove_schema(
-        #             schema_name
-        #         ),
-        #     ),
-        # ),
-        (
-            "DETACH DATABASE <random-schema-name>",
-            opts(
-                post=lambda schema_name: store.get_query_processor().remove_schema(
-                    schema_name
-                ),
-            ),
-        ),
+        "DETACH <name>",
+        "DETACH DATABASE <name>",
     ],
-    "<random-schema-name>": [
+}
+
+insert_stmt = {
+    "<insert-stmt>": [
+        "INSERT INTO <table-name> DEFAULT VALUES",
+        "REPLACE INTO <table-name> DEFAULT VALUES",
+    ]
+}
+
+
+expr = {
+    "<expr>": [
+        "<integer-expr>",
+        "<string-expr>",
+        "<real-expr>",
+        "<bool-expr>",
+        "<datetime-expr>",
+        "NULL",
+        "coalesce(<expr-csv>)",
+        "ifnull(<expr>, <expr>)",
+        "iif(<bool-expr>, <expr>, <expr>)",
+        "nullif(<expr>, <expr>)",
+    ],
+    "<expr-csv>": [
+        "<expr>, <expr>",
+    ],
+}
+
+core_functions = {
+    "<core-functions>": [
+        "changes()",
+        "last_insert_rowid()",
+        "total_changes()",
+    ]
+}
+
+datetime_expr = {
+    "<datetime-expr>": [
+        "CURRENT_TIME",
+        "CURRENT_DATE",
+        "CURRENT_TIMESTAMP",
+    ]
+}
+
+bool_expr = {
+    "<bool-expr>": [
+        "TRUE",
+        "FALSE",
+        "like(<string-literal>, <string-literal>)",
+        "like(<string-literal>, <string-literal>, '<character>')",
+    ]
+}
+
+real = {
+    "<real>": [
+        ".<integer><exponent>",
+        "<integer><exponent>",
+        "<integer>.<integer><exponent>",
+    ],
+    "<exponent>": [
+        "E<integer>",
+        "E+<integer>",
+        "E-<integer>",
+        "e<integer>",
+        "e+<integer>",
+        "e-<integer>",
+    ],
+}
+
+string_literal = {
+    "<string-literal>": ["'<characters>'"],
+    "<characters>": [("<dummy>", opts(pre=get_random_string))],
+    "<character>": [
+        ("<dummy>", opts(pre=lambda: random.choice(list(string.ascii_letters))))
+    ],
+}
+
+string_expr = {
+    "<string-expr>": [
+        "<string-literal>",
+        "char(<integer-csv>)",
+        "concat(<string-literal-csv>)",
+        "concat('<character>', <string-literal-csv>)",
+        "hex(<integer>)",
+        "hex(<real>)",
+        "lower(<string-literal>)",
+        "ltrim(<string-literal>)",
+        "max(<string-literal-csv>)",
+        "min(<string-literal-csv>)",
+        "replace(<string-literal>, <string-literal>, <string-literal>)",
+        "rtrim(<string-literal>)",
+        "substring(<string-literal>, '<character>')",
+        "substring(<string-literal>, '<character>', <integer>)",
+        "trim(<string-literal>)",
+        "upper(<string-literal>)",
+    ],
+    "<string-literal-csv>": [
+        "<string-literal>, <string-literal>",
+    ],
+}
+
+real_expr = {
+    "<real-expr>": [
+        "<real>",
+        "<unary-operator> <real>",
+        "<real> <binary-operator> <real>",
+        "abs(<real>)",
+        "max(<real-csv>)",
+        "min(<real-csv>)",
+        # "acos(<real>)",
+        # "acosh(<real>)",
+        # "asin(<real>)",
+        # "asinh(<real>)",
+        # "atan(<real>)",
+        # "atan2(<real>,<real>)",
+        # "atanh(<real>)",
+        # "cos(<real>)",
+        # "cosh(<real>)",
+        # "degrees(<real>)",
+        # "exp(<real>)",
+        # "ln(<real>)",
+        # "log(<real>)",
+        # "log(<integer>, <real>)",
+        # "log10(<real>)",
+        # "log2(<real>)",
+        # "mod(<real>)",
+        # "pi()",
+        # "radians(<real>)",
+        # "sin(<real>)",
+        # "sinh(<real>)",
+        # "sqrt(<real>)",
+        # "tan(<real>)",
+        # "tanh(<real>)",
+    ],
+    "<real-csv>": [
+        "<real>, <real>",
+    ],
+}
+
+integer_expr = {
+    "<integer-expr>": [
+        "<integer>",
+        "<unary-operator> <integer>",
+        "<integer> <binary-operator> <integer>",
+        "abs(<integer>)",
+        "instr(<string-literal>, <string-literal>)",
+        "length(<string-literal>)",
+        "max(<integer-csv>)",
+        "min(<integer-csv>)",
+        "octet_length(<string-literal>)",
+        "random()",
+        "round(<real>)",
+        "sign(<integer>)",
+        "unicode(<string-literal>)",
+        # "ceil(<integer>)",
+        # "ceiling(<integer>)",
+        # "floor(<integer>)",
+        # "mod(<integer>, <integer>)",
+        # "pow(<integer>, <integer>)",
+        # "power(<integer>, <integer>)",
+        # "trunc(<integer>)",
+    ],
+    "<integer>": [("<dummy>", opts(pre=lambda: random.randint(1, 10_000)))],
+    "<integer-csv>": [
+        "<integer>, <integer>",
+    ],
+}
+
+digit = {"<digit>": [("<dummy>", opts(pre=lambda: random.choice(list("0123456789"))))]}
+
+unary_operator = {
+    "<unary-operator>": ["+", "-"],
+}
+
+binary_operator = {
+    "<binary-operator>": [
         (
             "<dummy>",
             opts(
-                post=lambda _: store.get_query_processor().get_schema_name(),
+                pre=lambda: random.choice(
+                    [
+                        "||",
+                        "*",
+                        "/",
+                        "%",
+                        "+",
+                        "-",
+                        "&",
+                        "|",
+                        "<<",
+                        ">>",
+                        "<",
+                        ">",
+                        "<=",
+                        ">=",
+                        "=",
+                        "==",
+                        "!=",
+                    ]
+                )
             ),
         )
     ],
 }
 
-insert_stmt = {"<insert-stmt>": ["INSERT INTO <table-name> DEFAULT VALUES"]}
+explain_stmt = {
+    "<explain-stmt>": [
+        "EXPLAIN <stmt>",
+        "EXPLAIN QUERY PLAN <stmt>",
+    ]
+}
+
+stmt = {
+    "<stmt>": [
+        "<create-table-stmt>",
+        "<create-index-stmt>",
+        "<create-view-stmt>",
+        "<insert-stmt>",
+        "<select-stmt>",
+        "<alter-table-stmt>",
+        "<analyze-stmt>",
+        "<pragma-stmt>",
+        "<vacuum-stmt>",
+        "<drop-table-stmt>",
+        "<drop-index-stmt>",
+        "<drop-view-stmt>",
+        "<begin-stmt>",
+        "<commit-stmt>",
+        "<rollback-stmt>",
+        "<attach-stmt>",
+        "<detach-stmt>",
+    ]
+}
 
 grammar = {
     "<start>": ["<phase-1>", "<phase-2>", "<phase-3>"],
@@ -1366,13 +1335,6 @@ grammar = {
             "<create-table-stmt>",
             opts(
                 pre=lambda: store.append_query_processor(CreateTableProcessor),
-                post=lambda _: store.pop_query_processor(),
-            ),
-        ),
-        (
-            "<attach-stmt>",
-            opts(
-                pre=lambda: store.append_query_processor(AttachProcessor),
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
@@ -1392,27 +1354,12 @@ grammar = {
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
+    ],
+    "<phase-3>": [
         (
             "<insert-stmt>",
             opts(
                 pre=lambda: store.append_query_processor(InsertProcessor),
-                post=lambda _: store.pop_query_processor(),
-            ),
-        ),
-        (
-            "<detach-stmt>",
-            opts(
-                pre=lambda: store.append_query_processor(AttachProcessor),
-                post=lambda _: store.pop_query_processor(),
-                prob=0.01,
-            ),
-        ),
-    ],
-    "<phase-3>": [
-        (
-            "<select-stmt>",
-            opts(
-                pre=lambda: store.append_query_processor(SelectProcessor),
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
@@ -1430,62 +1377,76 @@ grammar = {
                 post=lambda _: store.pop_query_processor(),
             ),
         ),
-        "<vacuum-stmt>",
-        # "<begin-stmt>",
-        # "<commit-stmt>",
-        # "<rollback-stmt>",
         "<pragma-stmt>",
-        "<drop-table-stmt>",
-        "<drop-index-stmt>",
-        "<drop-view-stmt>",
+        ("<drop-table-stmt>", opts(prob=0.01)),
+        ("<drop-index-stmt>", opts(prob=0.01)),
+        ("<drop-view-stmt>", opts(prob=0.01)),
+        ("<vacuum-stmt>", opts(prob=0.001)),
+        ("<begin-stmt>", opts(prob=0.001)),
+        ("<commit-stmt>", opts(prob=0.001)),
+        ("<rollback-stmt>", opts(prob=0.001)),
+        ("<attach-stmt>", opts(prob=0.001)),
+        ("<detach-stmt>", opts(prob=0.001)),
+        (
+            "<select-stmt>",
+            opts(
+                pre=lambda: store.append_query_processor(SelectProcessor),
+                post=lambda _: store.pop_query_processor(),
+            ),
+        ),
     ],
     **alter_table_stmt,
     **analyze_stmt,
     **attach_stmt,
     **begin_stmt,
     **binary_operator,
-    **blob_literal,
+    **bool_expr,
     **column_constraint,
     **column_def,
     **commit_stmt,
-    **common_table_expression,
-    **compound_operator,
     **conflict_clause,
+    **core_functions,
     **create_index_stmt,
     **create_table_stmt,
     **create_view_stmt,
+    **datetime_expr,
     **detach_stmt,
     **digit,
     **drop_index_stmt,
     **drop_table_stmt,
     **drop_view_stmt,
     **expr,
-    **filter_clause,
-    **foreign_key_clause,
+    **integer_expr,
+    **real_expr,
+    **real,
+    **string_expr,
+    # **foreign_key_clause,
     **frame_spec,
-    **function_arguments,
     **indexed_column,
     **join_clause,
     **join_constraint,
     **join_operator,
-    **literal_value,
     **misc,
-    **numeric_literal,
-    **ordering_term,
-    **over_clause,
     **pragma_stmt,
-    **raise_function,
     **result_column,
     **rollback_stmt,
     **select_stmt,
-    **signed_number,
     **string_literal,
     **table_constraint,
     **table_options,
     **table_or_subquery,
-    **type_name,
     **unary_operator,
     **vacuum_stmt,
     **window_defn,
     **insert_stmt,
+    **ordering_term,
+    **explain_stmt,
+    **stmt,
 }
+
+
+if __name__ == "__main__":
+    from fuzzingbook.Grammars import is_valid_grammar, trim_grammar
+    from pprint import pprint
+
+    is_valid_grammar(grammar)
